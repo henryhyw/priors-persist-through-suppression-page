@@ -1215,18 +1215,45 @@ const Triplet = (function () {
     const row = D.tripletVsPair.find(r => r.model === modelId);
     if (!row) return;
 
-    // Reset edges & R only; vertices stay drawn
-    svg.selectAll(".vertex-dot").attr("r", 24);
-    svg.selectAll(".vertex-text, .vertex-label").style("opacity", 1);
-    svg.selectAll(".tri-edge").attr("opacity", 0).each(function() {
-      // collapse edges back to their start anchor
-      const sel = d3.select(this);
-      const a = +sel.attr("data-a");
-      sel.attr("x2", +sel.attr("x1")).attr("y2", +sel.attr("y1"));
+    // Full reset (clears any leftover swap-state styling from a previous Drop).
+    // Vertices: restore default fill/stroke + original example text.
+    svg.selectAll(".vertex-dot")
+      .attr("r", 24)
+      .attr("fill", "var(--bg-card)")
+      .attr("stroke", "var(--accent)")
+      .attr("stroke-width", 2);
+    svg.selectAll(".vertex-text")
+      .style("opacity", 1)
+      .style("fill", "var(--text)");
+    svg.selectAll(".vertex").each(function (_, i) {
+      d3.select(this).select(".vertex-text").text(positions[i].example);
     });
+    svg.selectAll(".vertex-label").style("opacity", 1);
+
+    // Edges: clear color + dash + reset opacity to 0 + collapse back to origin.
+    svg.selectAll(".tri-edge")
+      .attr("opacity", 0)
+      .attr("stroke", "var(--text)")
+      .attr("stroke-dasharray", null)
+      .each(function() {
+        const sel = d3.select(this);
+        const a = +sel.attr("data-a");
+        sel.attr("x2", +sel.attr("x1")).attr("y2", +sel.attr("y1"));
+      });
     svg.select(".tri-fill").attr("opacity", 0);
-    svg.select(".r-readout").style("opacity", 0).text("R = 0.00");
-    svg.select(".r-label").style("opacity", 0);
+
+    // R readout: default color + reset text and label
+    svg.select(".r-readout")
+      .style("opacity", 0)
+      .style("fill", "var(--accent)")
+      .text("R = 0.00");
+    svg.select(".r-label")
+      .style("opacity", 0)
+      .style("fill", "var(--text-mute)")
+      .text("RECOVERY");
+
+    // Remove any leftover swap / pair / final labels
+    svg.selectAll(".swap-marker, .donor-text, .pair-label, .triplet-final").remove();
 
     const pp = getPositions();
 
