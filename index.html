@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Priors Persist Through Suppression — A Stroop Paradigm for Lexical Override</title>
+<meta name="description" content="When you tell a language model that doctor means forest, does it stop believing doctor is at a hospital? A Stroop-style paradigm for lexical override." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="styles.css">
+<script src="d3.min.js"></script>
+<script>
+// Fallback: if local d3.min.js didn't load, try CDN; if both fail, show banner.
+(function () {
+  function showBanner(msg) {
+    const banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#9d3a2f;color:white;padding:14px 24px;font-family:monospace;font-size:13px;text-align:center;line-height:1.5';
+    banner.textContent = msg;
+    (document.body || document.documentElement).prepend(banner);
+  }
+  function load(src, onok, onerr) {
+    const s = document.createElement('script');
+    s.src = src; s.onload = onok; s.onerror = onerr;
+    document.head.appendChild(s);
+  }
+  if (typeof d3 === 'undefined') {
+    console.warn('Local d3.min.js did not load — trying CDN fallback.');
+    load('https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js',
+      () => console.info('d3 loaded from CDN fallback.'),
+      () => {
+        load('https://unpkg.com/d3@7/dist/d3.min.js',
+          () => console.info('d3 loaded from unpkg fallback.'),
+          () => document.addEventListener('DOMContentLoaded', () =>
+            showBanner('d3 failed to load. d3.min.js is missing from this folder AND both CDN fallbacks (jsdelivr, unpkg) are unreachable. Put d3.min.js in the same folder as index.html, or get on a network that can reach the CDNs.')));
+      });
+  }
+})();
+</script>
+</head>
+
+<body>
+
+<div class="progress" id="progress"></div>
+
+<nav class="topnav" id="topnav">
+  <div class="topnav-inner">
+    <div class="brand">priors <span class="acc">persist</span> through suppression</div>
+    <div class="navlinks">
+      <a href="#setup">Setup</a>
+      <a href="#test">Test</a>
+      <a href="#pattern">Pattern</a>
+      <a href="#everywhere">Everywhere</a>
+      <a href="#inside">Inside</a>
+      <a href="#punchline">Punchline</a>
+      <a href="#cite">Cite</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-inner">
+    <div class="hero-eyebrow">EMNLP &nbsp;·&nbsp; SUBMISSION</div>
+    <h1 class="hero-title">Priors persist<br/><em>through</em> suppression.</h1>
+    <p class="hero-sub">You tell a language model that <em>doctor</em> means <em>forest</em>. It says ok. But does it really stop pulling toward <em>hospital</em>? A Stroop-style paradigm reveals what's happening underneath.</p>
+    <p class="hero-authors">Anonymous Authors &nbsp;·&nbsp; Camera-ready names will appear here</p>
+    <div class="hero-actions">
+      <a class="btn primary" href="./manuscript.pdf"><span class="ico">📄</span> Read the paper</a>
+      <a class="btn" href="https://anonymous.4open.science/r/priors-persist-through-suppression-D05E/code/" target="_blank" rel="noopener"><span class="ico">‹/›</span> Code</a>
+      <a class="btn" href="https://anonymous.4open.science/r/priors-persist-through-suppression-D05E/data/" target="_blank" rel="noopener"><span class="ico">▦</span> Data</a>
+      <a class="btn" href="#cite"><span class="ico">❝</span> BibTeX</a>
+    </div>
+  </div>
+</header>
+
+<!-- 01 SETUP -->
+<section id="setup">
+  <div class="inner">
+    <div class="section-eyebrow reveal">01 &nbsp;·&nbsp; The setup</div>
+    <h2 class="section-title reveal delay-1">You tell the model. It says ok.<br/>But does it <em>really</em> believe you?</h2>
+    <div class="prose prose-large reveal delay-2">
+      <p>Suppose a glossary tells the model that <em>in this document, <span class="t-query">doctor</span> means <span class="t-target">forest</span></em>. The model reads it, accepts the rule, answers your follow-up questions. It looks like it understood.</p>
+      <p>But does it stop pulling toward <span class="t-distractor">hospital</span> &mdash; <em>doctor</em>'s strongest lexical neighbor? Or is it answering through the rule while still being tugged by what the word usually means?</p>
+    </div>
+    <div class="prose reveal delay-3">
+      <p>This question matters whenever a model is asked to respect a local definition over its built-in vocabulary &mdash; glossaries, system prompts, technical documentation, RAG-grounded answers. The answer turns out to be more interesting than yes or no.</p>
+    </div>
+    <p class="pullquote reveal delay-3">Override is not <em>replacement</em>. It's <em>competition</em>.</p>
+  </div>
+</section>
+
+<!-- 02 TEST — Stroop animation -->
+<section id="test">
+  <div class="inner-wide">
+    <div class="section-eyebrow reveal">02 &nbsp;·&nbsp; The test</div>
+    <h2 class="section-title reveal delay-1">A <em>Stroop card</em> for meaning.</h2>
+
+    <div class="prose reveal delay-2">
+      <p>Stroop (1935) asked you to name the ink color of color words. <span class="mono">RED</span> printed in <span class="t-target">green</span> ink is hard &mdash; the word fights the task. Our paradigm runs the same trick on <em>meaning</em>. A <strong>conflict prompt</strong> remaps a familiar word (<em>doctor</em>) to a contextual target (<em>forest</em>). A <strong>neutral control</strong> replaces the familiar word with something semantically weak (<em>class</em>), holding everything else fixed. The gap reveals how much the prior leaked.</p>
+    </div>
+
+    <div class="stage reveal delay-3" id="stroop-stage">
+      <div class="stage-controls">
+        <span class="label">WORKED EXAMPLE</span>
+        <span style="flex: 1"></span>
+        <button class="btn-mini accent" id="stroop-play">▶ Run paradigm</button>
+        <button class="btn-mini" id="stroop-reset">↺ Reset</button>
+      </div>
+
+      <div class="paradigm-controls">
+        <div class="ctrl">
+          <span class="ctrl-label">Model</span>
+          <select id="par-model" class="ctrl-select"></select>
+        </div>
+        <div class="ctrl">
+          <span class="ctrl-label">Prompt style</span>
+          <select id="par-style" class="ctrl-select"></select>
+        </div>
+        <div class="ctrl">
+          <span class="ctrl-label">Conflict family</span>
+          <select id="par-family" class="ctrl-select"></select>
+        </div>
+        <div class="ctrl">
+          <span class="ctrl-label">Item</span>
+          <select id="par-item" class="ctrl-select"></select>
+        </div>
+      </div>
+
+      <div class="stroop-cards">
+        <div class="pcard neutral">
+          <div class="pcard-label"><span class="dot"></span> Neutral control <span class="pcard-sub">— <em id="neu-label-word">class</em> means <span id="neu-label-target">forest</span></span></div>
+          <div class="ptext" id="ptext-neutral"></div>
+          <div class="bars">
+            <div class="bar-row target">
+              <span class="lbl" id="neu-tname">forest</span>
+              <div class="bar"><div class="fill" id="neu-tfill"></div></div>
+              <span class="val" id="neu-tval">—</span>
+            </div>
+            <div class="bar-row distractor">
+              <span class="lbl" id="neu-dname">hospital</span>
+              <div class="bar"><div class="fill" id="neu-dfill"></div></div>
+              <span class="val" id="neu-dval">—</span>
+            </div>
+          </div>
+          <div class="pcard-foot">
+            <span class="formula">S = log P(<span id="neu-foot-t">forest</span>) − log P(<span id="neu-foot-d">hospital</span>)</span>
+            <span class="v" id="neu-S">—</span>
+          </div>
+        </div>
+
+        <div class="pcard conflict">
+          <div class="pcard-label"><span class="dot"></span> Conflict prompt <span class="pcard-sub">— <em id="conf-label-query">doctor</em> means <span id="conf-label-target">forest</span></span></div>
+          <div class="ptext" id="ptext-conflict"></div>
+          <div class="bars">
+            <div class="bar-row target">
+              <span class="lbl" id="conf-tname">forest</span>
+              <div class="bar"><div class="fill" id="conf-tfill"></div></div>
+              <span class="val" id="conf-tval">—</span>
+            </div>
+            <div class="bar-row distractor">
+              <span class="lbl" id="conf-dname">hospital</span>
+              <div class="bar"><div class="fill" id="conf-dfill"></div></div>
+              <span class="val" id="conf-dval">—</span>
+            </div>
+          </div>
+          <div class="pcard-foot">
+            <span class="formula">S = log P(<span id="conf-foot-t">forest</span>) − log P(<span id="conf-foot-d">hospital</span>)</span>
+            <span class="v" id="conf-S">—</span>
+          </div>
+        </div>
+
+        <div class="delta-bar" id="delta-bar" style="opacity: 0;">
+          <div>
+            <div class="delta-tag">The leak, quantified</div>
+            <div class="delta-formula">Δ = S<sub>neutral</sub> − S<sub>conflict</sub> &nbsp;<span style="opacity:0.6;font-size:11px">(single neutral: <em id="delta-formula-neutral">class</em>)</span></div>
+          </div>
+          <div class="delta-value" id="delta-display">+8.75<span class="nats">nats</span></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="takeaway reveal">
+      For this item the target still wins both prompts. The <span id="tk-distractor">hospital</span>-distractor logit moves from <span class="mono" id="tk-neu-d">−26.77</span> (neutral) to <span class="mono" id="tk-conf-d">−18.83</span> (conflict). The single-neutral Δ comes out at <strong id="tk-delta-visual">+8.75</strong> nats; averaged across all 6 neutral controls the paper-defined Δ for this item is <strong id="tk-delta-paper">+8.61</strong>.
+    </p>
+  </div>
+</section>
+
+<!-- 03 PATTERN — Scatter -->
+<section id="pattern">
+  <div class="inner-wide">
+    <div class="section-eyebrow reveal">03 &nbsp;·&nbsp; The pattern</div>
+    <h2 class="section-title reveal delay-1">The leak follows the <em>prior</em>.</h2>
+
+    <div class="prose reveal delay-2">
+      <p>One item could be a fluke. But across 7,744 item × prompt × model observations, the relationship is clean: items whose distractor has a stronger lexical prior &mdash; where the model defaults more confidently to <em>hospital</em> over <em>forest</em>, or to whatever the word usually means &mdash; show larger Stroop interference. The slope survives controls for answer prior, frequency, tokenization, prompt wrapper, conflict family, model family, scale, and instruction tuning.</p>
+    </div>
+
+    <div class="stage reveal delay-3" id="scatter-stage">
+      <div class="stage-controls">
+        <span class="label">7,744 OBSERVATIONS</span>
+        <span class="muted">colored by conflict family · OLS line + decile means</span>
+        <span style="flex: 1"></span>
+        <button class="btn-mini" id="scatter-replay">↺ Replay</button>
+      </div>
+      <div class="chart" id="scatter-chart"></div>
+    </div>
+
+    <p class="takeaway reveal">
+      The leak isn't noise. It's the prior, still operating &mdash; predictable from how strongly the model originally held the word's default meaning.
+    </p>
+
+    <details class="reveal" id="reg-details" open>
+      <summary>Regression details — controls + robustness</summary>
+      <div class="reg-grid">
+        <div>
+          <div class="reg-label">Main coefficients <span class="muted">(sum log-prob; OLS w/ controls; n = 7,744)</span></div>
+          <table class="tbl" id="reg-tbl">
+            <thead>
+              <tr><th>Term</th><th>Coef.</th><th>95% CI</th><th>p</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div>
+          <div class="reg-label">Lexical-advantage robustness <span class="muted">(SE specifications)</span></div>
+          <table class="tbl" id="robust-tbl">
+            <thead>
+              <tr><th>SE specification</th><th>Coef.</th><th>95% CI</th><th>p</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+  </div>
+</section>
+
+<!-- 04 EVERYWHERE — Forest + Heatmap -->
+<section id="everywhere">
+  <div class="inner-wide">
+    <div class="section-eyebrow reveal">04 &nbsp;·&nbsp; Everywhere</div>
+    <h2 class="section-title reveal delay-1">Not a quirk of one <em>setting</em>.</h2>
+
+    <div class="prose reveal delay-2">
+      <p>The pattern holds across 11 open-weight models from four families and four sizes (1B&ndash;9B). Across four conflict families &mdash; antonym, arbitrary remap, polysemy/entity, domain definition. Across four prompt wrappers &mdash; game rule, glossary, technical doc, scoped definition. <strong>11 of 11 models · 4 of 4 families · 42 of 44 model × wrapper cells positive.</strong></p>
+    </div>
+
+    <div class="evidence-row reveal delay-3">
+      <div class="stage compact" id="forest-stage">
+        <div class="stage-controls">
+          <span class="label">FOREST</span>
+          <span class="muted">model-level Δ, 95% CI</span>
+        </div>
+        <div class="chart" id="forest-chart"></div>
+      </div>
+      <div class="stage compact">
+        <div class="stage-controls">
+          <span class="label">HEATMAP</span>
+          <div class="toggle-grp" id="heatmap-mode">
+            <button class="btn-mini active" data-mode="family">family</button>
+            <button class="btn-mini" data-mode="style">wrapper</button>
+          </div>
+        </div>
+        <div class="chart" id="heatmap-chart"></div>
+        <div class="heatmap-detail" id="heatmap-detail"><span class="hint">Hover any cell for details.</span></div>
+      </div>
+    </div>
+
+    <p class="takeaway reveal">
+      The phenomenon survives every axis we tested. Whatever's causing it isn't model-specific or prompt-specific.
+    </p>
+  </div>
+</section>
+
+<!-- 05 INSIDE — Patching animation -->
+<section id="inside">
+  <div class="inner-wide">
+    <div class="section-eyebrow reveal">05 &nbsp;·&nbsp; Inside the model</div>
+    <h2 class="section-title reveal delay-1">Where does the <em>leak</em> live?</h2>
+
+    <div class="prose reveal delay-2">
+      <p>Behavior tells us the leak is real and scales with the prior. To find <em>where</em> it lives, we use <strong>activation patching</strong>. We run the model twice: once on the conflict prompt (the run that leaks), once on the neutral control (the run that doesn't). We copy a slice of internal state &mdash; one token's activations at one layer &mdash; from the neutral run into the conflict run, and measure how much of the leak goes away.</p>
+    </div>
+
+    <div class="stage reveal delay-3" id="patch-stage">
+      <div class="stage-controls">
+        <span class="label">PATCH FROM</span>
+        <div class="toggle-grp" id="patch-source">
+          <button class="btn-mini" data-src="def_subject">subject</button>
+          <button class="btn-mini" data-src="def_target">target</button>
+          <button class="btn-mini" data-src="query_word">query</button>
+          <button class="btn-mini active" data-src="full_triplet">all three</button>
+        </div>
+        <span style="flex: 1"></span>
+        <button class="btn-mini accent" id="patch-play">▶ Run patch</button>
+      </div>
+      <div class="patch-hint-row">
+        <span class="patch-hint" id="patch-hint">expected <span class="v">R ≈ 1.05</span> &nbsp;<span class="desc">— full recovery</span></span>
+      </div>
+      <div class="patch-schematic chart" id="patch-chart"></div>
+    </div>
+
+    <p class="takeaway reveal">
+      Any one position only recovers a fraction. Subject alone is near zero, target alone gets you about a fifth, query about a third. But injecting <strong>all three together</strong> &mdash; subject, target, query &mdash; recovers <em>everything</em>.
+    </p>
+  </div>
+</section>
+
+<!-- 06 TRIPLET — Triplet animation -->
+<section id="triplet">
+  <div class="inner-wide">
+    <div class="section-eyebrow reveal">06 &nbsp;·&nbsp; The triplet</div>
+    <h2 class="section-title reveal delay-1">Subject. Target. Query.<br/>One <em>binding</em>.</h2>
+
+    <div class="prose reveal delay-2">
+      <p>The three positions don't recover the effect by simply adding up. They <em>bind</em>. Subject and query supply the identity match &mdash; <em>which</em> word is being redefined. Target supplies the local value &mdash; <em>what</em> it's being redefined to. Replace the target activation with a donor item's, keeping subject and query matched, and recovery collapses in every model. The triplet does binding, not retrieval.</p>
+    </div>
+
+    <div class="stage reveal delay-3" id="triplet-stage">
+      <div class="stage-controls">
+        <span class="label">MODEL</span>
+        <div class="toggle-grp" id="triplet-model">
+          <button class="btn-mini" data-model="olmo-1b">OLMo-1B</button>
+          <button class="btn-mini" data-model="qwen2.5-1.5b">Qwen2.5-1.5B</button>
+          <button class="btn-mini" data-model="qwen2.5-1.5b-it">Qwen2.5-1.5B-IT</button>
+          <button class="btn-mini active" data-model="gemma-2-2b">Gemma-2-2B</button>
+          <button class="btn-mini" data-model="gemma-2-2b-it">Gemma-2-2B-IT</button>
+        </div>
+        <span style="flex: 1"></span>
+        <button class="btn-mini" id="triplet-replay">↺ Replay</button>
+      </div>
+      <div class="triplet-stage chart" id="triplet-chart"></div>
+    </div>
+
+    <p class="takeaway reveal">
+      The rule lives in a three-token signature in mid-block residual stream. Not at one position. Not by simple addition. By a <em>bound triplet</em>.
+    </p>
+  </div>
+</section>
+
+<!-- 07 PUNCHLINE — Dissociation -->
+<section id="punchline">
+  <div class="inner-wide">
+    <div class="section-eyebrow reveal">07 &nbsp;·&nbsp; The punchline</div>
+    <h2 class="section-title reveal delay-1">Suppression <em>everywhere</em>.<br/>Preservation only when <em>bound</em>.</h2>
+
+    <div class="prose reveal delay-2">
+      <p>The triplet binds. The binding repairs the target–distractor margin. But <em>how</em>? Two channels could carry the repair: push the distractor's logit down, or hold the target's logit up. Or both. Two controls separate them.</p>
+      <p><strong>Swap</strong>: replace only the target activation with a donor item's, keeping subject and query matched. Source-position perturbation present, binding broken on one position. <strong>Random</strong>: patch all three positions, but from a completely mismatched item. Full perturbation, no binding match.</p>
+    </div>
+
+    <div class="stage reveal delay-3" id="diss-stage">
+      <div class="stage-controls">
+        <span class="label">DISSOCIATION</span>
+        <button class="btn-mini accent" id="diss-play">▶ Play</button>
+        <button class="btn-mini" id="diss-reset">↺ Reset</button>
+        <span style="flex: 1"></span>
+        <span class="muted" id="diss-step">at rest</span>
+      </div>
+      <div class="diss-narrator">
+        <div class="diss-cap" id="diss-cap-1"><span class="num">1</span> Red bars fall <em>everywhere</em> &mdash; distractor suppression is universal.</div>
+        <div class="diss-cap" id="diss-cap-2"><span class="num">2</span> Green bars collapse in Swap and Random, but <em>hold</em> in Matched.</div>
+        <div class="diss-cap" id="diss-cap-3"><span class="num">3</span> Δm &mdash; the margin signature &mdash; is positive only for Matched.</div>
+      </div>
+      <div class="chart" id="diss-chart"></div>
+    </div>
+
+    <p class="takeaway reveal">
+      <strong>Distractor suppression is what any patch can do. Target preservation is what binding can do.</strong> The matched-binding signature isn't in pushing the wrong answer down &mdash; that happens with any perturbation. It's in <em>holding the right answer up</em>.
+    </p>
+  </div>
+</section>
+
+<!-- 08 MEANING -->
+<section id="meaning">
+  <div class="inner">
+    <div class="section-eyebrow reveal">08 &nbsp;·&nbsp; What it means</div>
+    <h2 class="section-title reveal delay-1">Override is a <em>partial competition</em>.</h2>
+    <div class="prose prose-large reveal delay-2">
+      <p>When a model is told <em>doctor means forest</em>, it doesn't unlearn that doctor lives in a hospital. It learns to make <em>forest</em> win the local contest. But <em>hospital</em>'s representation is still running underneath &mdash; same lexical-prior channel, same target–distractor axis &mdash; leaking through in proportion to its strength.</p>
+      <p>For systems that have to respect document-specific definitions &mdash; glossaries, RAG, technical doc QA, system prompts &mdash; that's a real distinction. A model that <em>looks</em> like it overrode the prior may still be biased toward it underneath. The Stroop card gives you a per-item measurement; the dissociation tells you which logit channel signals true binding versus mere perturbation.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 09 CITE -->
+<section id="cite">
+  <div class="inner">
+    <div class="section-eyebrow reveal">09 &nbsp;·&nbsp; Cite</div>
+    <h2 class="section-title reveal delay-1">BibTeX</h2>
+    <div class="bibtex reveal delay-2">
+      <button class="copy-btn" id="bib-copy">Copy</button>
+      <div class="bib-scroll">
+<pre id="bib-text">@misc{anon2026priors,
+  title  = {Priors Persist Through Suppression: A Stroop Paradigm for Lexical Override},
+  author = {Anonymous},
+  year   = {2026},
+  note   = {Under review at EMNLP 2026},
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Built with d3.js, Fraunces, and a lot of cream-colored space.
+</footer>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
