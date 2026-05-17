@@ -1293,6 +1293,105 @@ const Triplet = (function () {
     setTimeout(() => svg.select(".triplet-final").transition().duration(400).style("opacity", 0).remove(), 2000);
   }
 
+  async function playSwap() {
+    if (!svg) draw();
+    const row = D.tripletVsPair.find(r => r.model === modelId);
+    const swapRow = (D.swapControl || []).find(r => r.model === modelId);
+    if (!row) return;
+    const swapR = swapRow ? swapRow.swap : -0.5;
+    const matchedR = swapRow ? swapRow.matched : row.Rtrp;
+
+    const pp = getPositions();
+    const targetIdx = 1; // def_target is positions[1]
+
+    // Reset to full-triplet state (all vertices, all edges, fill, R = matched)
+    svg.selectAll(".vertex-dot")
+      .attr("r", 24)
+      .attr("fill", "var(--bg-card)")
+      .attr("stroke", "var(--accent)")
+      .attr("stroke-width", 2);
+    svg.selectAll(".vertex-text").style("opacity", 1).style("fill", "var(--text)");
+    svg.selectAll(".vertex-label").style("opacity", 1);
+    svg.selectAll(".tri-edge").attr("opacity", 0.85)
+      .attr("stroke", "var(--text)")
+      .attr("stroke-dasharray", null)
+      .each(function () {
+        const sel = d3.select(this);
+        const a = +sel.attr("data-a"), b = +sel.attr("data-b");
+        sel.attr("x1", pp[a].x).attr("y1", pp[a].y)
+           .attr("x2", pp[b].x).attr("y2", pp[b].y);
+      });
+    svg.select(".tri-fill").attr("opacity", 0.10);
+    svg.select(".r-readout").style("opacity", 1).style("fill", "var(--accent)").text(`R = ${matchedR.toFixed(2)}`);
+    svg.select(".r-label").style("opacity", 1).text("MATCHED");
+    svg.selectAll(".swap-marker, .donor-text").remove();
+
+    await sleep(600);
+
+    // Step 1: target vertex briefly highlights ("about to swap"), then flips
+    const targetG = svg.select(`.vertex.v${targetIdx}`);
+    await targetG.select(".vertex-dot")
+      .transition().duration(400)
+      .attr("stroke", "#9d3a2f")  // distractor red
+      .attr("stroke-width", 3)
+      .end();
+
+    // Step 2: target dot color flips, label changes to "donor"
+    await targetG.select(".vertex-dot")
+      .transition().duration(500)
+      .attr("fill", "#9d3a2f")
+      .attr("stroke", "#9d3a2f")
+      .end();
+    targetG.select(".vertex-text")
+      .transition().duration(300)
+      .style("fill", "white")
+      .text("?");
+
+    // Add a "DONOR" annotation near the target
+    targetG.append("text")
+      .attr("class", "donor-text")
+      .attr("y", -52)
+      .attr("text-anchor", "middle")
+      .style("font-family", "var(--font-mono)")
+      .style("font-size", "10px")
+      .style("letter-spacing", "0.15em")
+      .style("fill", "#9d3a2f")
+      .style("font-weight", "500")
+      .style("opacity", 0)
+      .text("← DONOR (mismatched)")
+      .transition().duration(400).style("opacity", 1);
+
+    // Step 3: edges to target turn dashed/red (binding broken)
+    svg.selectAll(".tri-edge").each(function () {
+      const sel = d3.select(this);
+      const a = +sel.attr("data-a"), b = +sel.attr("data-b");
+      if (a === targetIdx || b === targetIdx) {
+        sel.transition().duration(500)
+          .attr("stroke", "#9d3a2f")
+          .attr("stroke-dasharray", "6,4")
+          .attr("opacity", 0.6);
+      }
+    });
+    svg.select(".tri-fill").transition().duration(500).attr("opacity", 0.04);
+
+    await sleep(600);
+
+    // Step 4: R animates down from matched to swap value
+    svg.select(".r-readout").style("fill", "#9d3a2f");
+    svg.select(".r-label").text("SWAP").style("fill", "#9d3a2f");
+    await animatePromise(svg.select(".r-readout").node(), matchedR, swapR, 1100, v => `R = ${(v >= 0 ? "+" : "")}${v.toFixed(2)}`);
+
+    // Step 5: collapse caption appears
+    svg.append("text").attr("class", "swap-marker")
+      .attr("x", cx).attr("y", cy + 68)
+      .attr("text-anchor", "middle")
+      .style("font-family", "var(--font-mono)").style("font-size", "11px")
+      .style("letter-spacing", "0.12em").style("fill", "#9d3a2f")
+      .style("opacity", 0)
+      .text(`COLLAPSE: ${(matchedR - swapR).toFixed(2)} nat drop`)
+      .transition().duration(500).style("opacity", 1);
+  }
+
   function init() {
     draw();
     onceVisible($("#triplet-stage"), () => setTimeout(play, 500), 0.3);
@@ -1306,6 +1405,8 @@ const Triplet = (function () {
       });
     });
     $("#triplet-replay").addEventListener("click", play);
+    const swapBtn = $("#triplet-swap");
+    if (swapBtn) swapBtn.addEventListener("click", playSwap);
   }
 
   return { init };
@@ -1740,6 +1841,14 @@ function boot() {
 
   safe("bibtex",        () => initBibtex());
 
+  // === New enhancements ===
+  safe("hero-leak",      () => HeroLeak.init());
+  safe("scatter-brush",  () => ScatterEnhance.init());
+  safe("heatmap-sync",   () => HeatmapSync.init());
+  safe("data-citations", () => DataCite.init());
+  safe("layer-toggle",   () => LayerToggle.init());
+  safe("mode-toggle",    () => ModeToggle.init());
+
   // Re-render charts on resize
   let rt;
   window.addEventListener("resize", () => {
@@ -1757,3 +1866,571 @@ if (document.readyState === "loading") {
 } else {
   boot();
 }
+
+
+// ============================================================
+// A1. Hero leak animation (mini bars that oscillate between
+// neutral and conflict states under the hero subtitle).
+// ============================================================
+const HeroLeak = (function () {
+  // Real numbers from Gemma-2-2B-IT, glossary wrapper, doctor item, class neutral
+  // (same numbers as Figure 1 of the paper).
+  // Real numbers: Gemma-2-2B-IT, glossary wrapper, doctor item, class neutral.
+  // Bar width maps |log p| to pixels (wider = more negative = less probable).
+  // viewBox is 280 wide; bars start at x=66 with ~170px available before the
+  // value text needs room (~40px). Max bar width allowed = 130px to keep the
+  // value text from clipping at the right edge.
+  const MAX_BAR = 130;
+  const MAX_NAT = 30;        // largest |log p| we expect (~−26.77)
+  const SCALE = MAX_BAR / MAX_NAT;  // ≈ 4.33 px per nat
+  const states = [
+    { label: "neutral control · class means forest",  tNum: -9.99,  dNum: -26.77, S: 16.78 },
+    { label: "conflict prompt · doctor means forest", tNum: -10.80, dNum: -18.83, S: 8.03  },
+  ];
+  let i = 0;
+  let timer = null;
+
+  function fmt(n) { return (n >= 0 ? "+" : "") + n.toFixed(2); }
+  function barW(n) { return Math.max(4, Math.min(MAX_BAR, Math.abs(n) * SCALE)); }
+
+  function apply(s) {
+    const state = document.querySelector("#hero-leak .leak-state");
+    const tBar  = document.querySelector("#hero-leak .leak-target");
+    const dBar  = document.querySelector("#hero-leak .leak-distractor");
+    const tVal  = $("#leak-tval");
+    const dVal  = $("#leak-dval");
+    const delta = $("#leak-delta");
+    if (!state || !tBar || !dBar) return;
+    const tW = barW(s.tNum), dW = barW(s.dNum);
+    state.textContent = s.label;
+    tBar.setAttribute("width", tW);
+    dBar.setAttribute("width", dW);
+    // Value text floats just to the right of each bar end (bar starts at x=66)
+    tVal.setAttribute("x", 66 + tW + 4);
+    dVal.setAttribute("x", 66 + dW + 4);
+    tVal.textContent = fmt(s.tNum);
+    dVal.textContent = fmt(s.dNum);
+    delta.textContent = `target − distractor margin  =  ${fmt(s.S)} nats`;
+  }
+
+  function cycle() {
+    i = (i + 1) % states.length;
+    apply(states[i]);
+  }
+
+  function init() {
+    const root = $("#hero-leak");
+    if (!root) return;
+    apply(states[0]);
+    timer = setInterval(cycle, 3200);
+    // Pause when user is not looking at the hero
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) { clearInterval(timer); timer = null; }
+      else if (!timer) { timer = setInterval(cycle, 3200); }
+    });
+  }
+
+  return { init };
+})();
+
+
+// ============================================================
+// A2. Scatter brush + per-point tooltip.
+// ============================================================
+const ScatterEnhance = (function () {
+  let tip = null, summary = null;
+
+  function ensureTip() {
+    if (tip) return tip;
+    tip = document.createElement("div");
+    tip.className = "scatter-tip";
+    document.body.appendChild(tip);
+    return tip;
+  }
+
+  function ensureSummary(parent) {
+    if (summary) return summary;
+    summary = document.createElement("div");
+    summary.className = "brush-summary";
+    summary.innerHTML = `
+      <div class="b-head">
+        <span>Selected items</span>
+        <span class="b-count">0</span>
+        <button class="b-clear">clear</button>
+      </div>
+      <div class="b-items"></div>
+    `;
+    parent.appendChild(summary);
+    summary.querySelector(".b-clear").addEventListener("click", clearBrush);
+    return summary;
+  }
+
+  function familyLabel(famId) {
+    const f = (D.conflictFamilies || []).find(x => x.id === famId);
+    return f ? f.label : famId;
+  }
+
+  function showTip(d, evt) {
+    const t = ensureTip();
+    const fam = familyLabel(d.family);
+    t.innerHTML = `
+      <div><span class="item-w">${fam}</span> <span class="lbl">item</span></div>
+      <div><span class="lbl">lex. advantage:</span> <span class="v">${d.x.toFixed(2)}</span> <span class="lbl">nats</span></div>
+      <div><span class="lbl">Stroop Δ:</span> <span class="v">${d.y.toFixed(2)}</span> <span class="lbl">nats</span></div>
+    `;
+    t.classList.add("show");
+    moveT(t, evt);
+  }
+
+  function moveT(t, evt) {
+    t.style.left = (evt.pageX + 12) + "px";
+    t.style.top  = (evt.pageY + 12) + "px";
+  }
+
+  function hideTip() { if (tip) tip.classList.remove("show"); }
+
+  let brushGroup = null;
+  let allCircles = null;
+  let svgSel = null;
+
+  function clearBrush() {
+    if (allCircles) allCircles.attr("opacity", 0.28).attr("r", 1.3);
+    if (summary) summary.classList.remove("active");
+    if (brushGroup) brushGroup.call(d3.brush().move, null);
+  }
+
+  function applyBrush(extent) {
+    if (!extent || !allCircles) {
+      clearBrush();
+      return;
+    }
+    const [[x0, y0], [x1, y1]] = extent;
+    const inside = [];
+    allCircles.each(function (d) {
+      const cx = +d3.select(this).attr("cx");
+      const cy = +d3.select(this).attr("cy");
+      const hit = cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1;
+      d._brushed = hit;
+      if (hit) inside.push(d);
+    });
+    allCircles
+      .attr("opacity", d => d._brushed ? 0.85 : 0.06)
+      .attr("r", d => d._brushed ? 2.2 : 1.3);
+    showSummary(inside);
+  }
+
+  function showSummary(items) {
+    if (!summary) return;
+    summary.classList.add("active");
+    summary.querySelector(".b-count").textContent = `n = ${items.length}`;
+    if (items.length === 0) {
+      summary.querySelector(".b-items").innerHTML =
+        '<div class="b-item"><span class="d">(empty selection)</span></div>';
+      return;
+    }
+    // Compute summary stats: mean x, mean y, family breakdown
+    const mean = (arr, fn) => arr.reduce((s, d) => s + fn(d), 0) / arr.length;
+    const meanX = mean(items, d => d.x);
+    const meanY = mean(items, d => d.y);
+    const minY  = d3.min(items, d => d.y);
+    const maxY  = d3.max(items, d => d.y);
+    const famCounts = {};
+    items.forEach(d => { famCounts[d.family] = (famCounts[d.family] || 0) + 1; });
+    const famSorted = Object.entries(famCounts).sort((a, b) => b[1] - a[1]);
+
+    let html = `
+      <div class="b-item"><span class="w">mean lex. advantage</span><span class="d">${meanX.toFixed(2)}</span></div>
+      <div class="b-item"><span class="w">mean Δ</span><span class="d">${meanY.toFixed(2)}</span></div>
+      <div class="b-item"><span class="w">Δ range</span><span class="d">[${minY.toFixed(2)}, ${maxY.toFixed(2)}]</span></div>
+      <div class="b-item"><span class="w">positive Δ</span><span class="d">${(100 * items.filter(d => d.y > 0).length / items.length).toFixed(0)}%</span></div>
+    `;
+    famSorted.forEach(([fam, n]) => {
+      html += `<div class="b-item"><span class="w">${familyLabel(fam)}</span><span class="d">${n} (${(100*n/items.length).toFixed(0)}%)</span></div>`;
+    });
+    summary.querySelector(".b-items").innerHTML = html;
+  }
+
+  function init() {
+    const container = $("#scatter-chart");
+    if (!container) return;
+
+    // Wait one tick after Scatter draws (it draws on visibility)
+    const tryInit = () => {
+      const svgEl = container.querySelector("svg");
+      if (!svgEl) return setTimeout(tryInit, 400);
+      svgSel = d3.select(svgEl);
+      const g = svgSel.select("g");
+      allCircles = g.select(".points").selectAll("circle");
+      if (!allCircles.size()) return setTimeout(tryInit, 400);
+
+      // Get bounds for brush
+      const W = +svgEl.viewBox.baseVal.width - 90;   // margin left+right
+      const H = 440;
+      const margin = { left: 60, top: 20 };
+
+      // Per-circle hover handlers
+      allCircles
+        .style("pointer-events", "all")
+        .on("mouseenter", function (evt, d) {
+          d3.select(this).attr("r", 3).attr("opacity", 1);
+          showTip(d, evt);
+        })
+        .on("mousemove", function (evt) {
+          if (tip) moveT(tip, evt);
+        })
+        .on("mouseleave", function (evt, d) {
+          if (!d._brushed) {
+            d3.select(this).attr("r", 1.3).attr("opacity", 0.28);
+          }
+          hideTip();
+        });
+
+      // Brush layer (under the existing g, above grid)
+      const brush = d3.brush()
+        .extent([[0, 0], [W, H]])
+        .on("brush end", (event) => applyBrush(event.selection));
+
+      brushGroup = g.append("g").attr("class", "brush").lower();
+      brushGroup.call(brush);
+      // Move points back above brush overlay
+      g.select(".points").raise();
+      // Bring OLS line + decile means back to top
+      g.selectAll("line, text.annot").raise();
+
+      // Summary panel under chart
+      const stage = $("#scatter-stage");
+      ensureSummary(stage);
+    };
+
+    onceVisible($("#scatter-stage"), tryInit, 0.25);
+  }
+
+  return { init };
+})();
+
+
+// ============================================================
+// A3. Heatmap synchronized hover with forest plot + cell click
+// drill-down modal.
+// ============================================================
+const HeatmapSync = (function () {
+  // Representative items per family (drawn from App A Table 4 / paper).
+  const FAMILY_EXAMPLES = {
+    "antonym":     [{ q: "small", t: "big",   d: "tiny"  },
+                    { q: "hot",   t: "cold",  d: "warm"  }],
+    "arbitrary":   [{ q: "doctor",  t: "forest",  d: "hospital" },
+                    { q: "teacher", t: "ocean",   d: "school"   }],
+    "polysemy":    [{ q: "jaguar", t: "car",         d: "animal" },
+                    { q: "Python", t: "programming", d: "snake"  }],
+    "domain-def":  [{ q: "port",   t: "socket",  d: "harbor" },
+                    { q: "thread", t: "process", d: "sewing" }],
+  };
+  // Representative items per wrapper. Reuses arbitrary family for the example body.
+  const STYLE_EXAMPLES = {
+    "game-rule":          { wrapper: 'In this game, doctor means forest. Question: a word related to doctor is ___' },
+    "glossary":           { wrapper: 'A glossary for this document defines "doctor" as "forest". Using only this glossary, a word related to "doctor" is ___' },
+    "technical-document": { wrapper: 'In the following technical document, the term "doctor" refers to "forest". According to the document, a word related to "doctor" is ___' },
+    "scoped-definition":  { wrapper: 'For this passage only, interpret "doctor" as "forest". Under this definition, a word related to "doctor" is ___' },
+  };
+
+  const modal = () => $("#drilldown");
+
+  function openModal({ model, dim, key, value }) {
+    const m = modal();
+    if (!m) return;
+    const modelLabel = (D.models.find(x => x.id === model) || {}).label || model;
+    const cols = dim === "family" ? D.conflictFamilies : D.promptStyles;
+    const col = cols.find(c => c.id === key);
+    const colLabel = col ? col.label : key;
+
+    $("#drill-eyebrow").textContent = `${dim === "family" ? "Conflict family" : "Prompt wrapper"} cell`;
+    $("#drill-title").innerHTML = `${modelLabel} <span style="color:var(--text-mute)">×</span> <em>${colLabel}</em>`;
+
+    const sign = value == null ? "—" : (value >= 0 ? "+" : "") + value.toFixed(2);
+    $("#drill-meta").innerHTML = `
+      <span class="chip">model: ${modelLabel}</span>
+      <span class="chip">${dim}: ${colLabel}</span>
+      <span class="chip delta">Δ = ${sign} nats</span>
+    `;
+
+    let body = "";
+    if (dim === "family") {
+      const ex = FAMILY_EXAMPLES[key] || [];
+      body += `<p>Items in this family take the form <span class="w">&lt;query&gt; means &lt;target&gt;</span>, with a competing lexical-prior distractor. Examples from the stimulus set:</p>`;
+      ex.forEach(it => {
+        body += `
+          <div class="ex">
+            <div class="role">conflict prompt</div>
+            <span class="w">${it.q}</span> <span style="color:var(--text-mute)">means</span> <span class="w">${it.t}</span>
+            <div class="role" style="margin-top:6px">lexical-prior distractor</div>
+            <span class="w">${it.d}</span>
+          </div>`;
+      });
+      body += `<p style="margin-top:14px;">Under <em>${modelLabel}</em>, this family aggregates to <strong style="color:var(--accent)">Δ = ${sign} nats</strong> across all 4 prompt wrappers. Positive = the model leaks toward the distractor when overriding.</p>`;
+    } else {
+      const ex = STYLE_EXAMPLES[key];
+      body += `<p>This wrapper presents the conflict as:</p>`;
+      body += `<div class="ex"><div class="role">prompt template</div><span class="w">${ex ? ex.wrapper : "—"}</span></div>`;
+      body += `<p style="margin-top:14px;">Under <em>${modelLabel}</em>, this wrapper aggregates to <strong style="color:var(--accent)">Δ = ${sign} nats</strong> across all 4 conflict families.</p>`;
+    }
+    $("#drill-body").innerHTML = body;
+
+    m.classList.add("show");
+    m.setAttribute("aria-hidden", "false");
+  }
+
+  function closeModal() {
+    const m = modal();
+    if (!m) return;
+    m.classList.remove("show");
+    m.setAttribute("aria-hidden", "true");
+  }
+
+  function syncForestHighlight(modelId) {
+    const rows = d3.select("#forest-chart").selectAll(".forest-row");
+    if (rows.empty()) return;
+    if (!modelId) {
+      rows.classed("synced-hi", false).classed("synced-dim", false);
+      return;
+    }
+    rows.classed("synced-hi", d => d.id === modelId)
+        .classed("synced-dim", d => d.id !== modelId);
+  }
+
+  function init() {
+    // Modal close handlers
+    const m = modal();
+    if (m) {
+      $("#drill-close").addEventListener("click", closeModal);
+      m.addEventListener("click", e => { if (e.target === m) closeModal(); });
+      document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+    }
+
+    // Wait for heatmap to render then wire up rect events
+    const attach = () => {
+      const cells = d3.select("#heatmap-chart").selectAll("rect");
+      if (cells.empty()) return setTimeout(attach, 300);
+
+      cells.each(function () {
+        const rectSel = d3.select(this);
+        // Walk DOM to find model and column for this cell. The heatmap renders
+        // each cell as a `g[transform="translate(x,y)"]` containing a rect+text;
+        // we infer model index from y-position and column index from x.
+        const parentG = this.parentNode;
+        const tx = parentG.getAttribute("transform") || "";
+        const match = tx.match(/translate\(([-\d.]+),\s*([-\d.]+)\)/);
+        if (!match) return;
+        const x = parseFloat(match[1]);
+        const y = parseFloat(match[2]);
+
+        const cellW = 130, cellH = 36, labelW = 160, colH = 56;
+        const colIdx = Math.round((x - labelW) / cellW);
+        const rowIdx = Math.round((y - colH) / cellH);
+
+        const dim = (typeof heatmapMode === "string") ? heatmapMode : "family";
+        const cols = dim === "family" ? D.conflictFamilies : D.promptStyles;
+        const model = D.models[rowIdx];
+        const col = cols[colIdx];
+        if (!model || !col) return;
+
+        const dataSrc = dim === "family" ? D.cellByFamily : D.cellByStyle;
+        const v = ((dataSrc[model.id]) || {})[col.id];
+
+        rectSel.on("pointerenter.sync", () => syncForestHighlight(model.id))
+               .on("pointerleave.sync", (evt) => {
+                 if (evt.pointerType !== "touch") syncForestHighlight(null);
+               })
+               .on("click.drill", () => openModal({ model: model.id, dim, key: col.id, value: v }));
+      });
+    };
+
+    onceVisible($("#heatmap-chart") || document.body, attach, 0.2);
+    // Re-attach after heatmap mode toggle (renderHeatmap rebuilds rects)
+    $$("#heatmap-mode .btn-mini").forEach(b => {
+      b.addEventListener("click", () => setTimeout(attach, 50));
+    });
+    // Also re-attach after window resize re-renders the heatmap
+    window.addEventListener("resize", () => setTimeout(attach, 250));
+  }
+
+  return { init };
+})();
+
+
+// ============================================================
+// A5. Data citations — wrap key numbers with hoverable
+// provenance tooltips (paper table/figure source).
+// ============================================================
+const DataCite = (function () {
+  let tip = null;
+
+  // Pairs: [substring match (regex or string), provenance text].
+  // Order matters — first match wins per text node.
+  const CITES = [
+    [/8\.75\s*nats?/g,                "Single-neutral Δ for class · doctor → forest item, Gemma-2-2B-IT, glossary wrapper. Paper Figure 1."],
+    [/8\.61\s*nats?/g,                "Six-control mean Δ for the doctor → forest item. Paper §3.2 worked example."],
+    [/\+8\.03/g,                      "S(conflict) for doctor → forest, Gemma-2-2B-IT, glossary wrapper. Paper §3.2."],
+    [/\+10\.59/g,                     "Mean S(neutral) across 6 controls, doctor → forest item. Paper §3.2."],
+    [/\b7,744\b/g,                    "n = item × prompt × model observations = 176 × 4 × 11. Paper Table 1, App C."],
+    [/176 (?:unique )?(?:lexical )?items?/gi, "176 unique lexical items distributed across 4 families (80/36/30/30). Paper App A."],
+    [/11 (open-weight )?models?/gi,   "Qwen2.5-1.5B/7B (base/IT), Gemma-2-2B/9B (base/IT), OLMo-1B, Mistral-7B (base/IT). Paper §3.3, App B."],
+    [/\+0\.114/g,                     "Main controlled regression coefficient for lexical-prior advantage. Paper Table 1."],
+    [/p\s*<\s*10[\s−-]*9/gi,     "p-value from item-clustered SE main regression. Paper Table 1."],
+    [/\+0\.026/g,                     "Within-antonym slope (family interaction). Not significant. Paper Table 13."],
+    [/\bΔR\s*=\s*\+0\.11 to \+0\.36/g,"Triplet–pair recovery margin across 5/5 mechanism models. Paper Table 2."],
+    [/\bR\s*≈\s*1\.05/g,              "Full-triplet recovery, Gemma-2-2B. Paper Table 2."],
+    [/0\.83\s*[–-]\s*0\.95/g,    "200-fold held-out positive-Δ fraction in instruction-tuned mechanism models. Paper §5.2."],
+    [/0\.97\s*[–-]\s*1\.00/g,    "200-fold held-out positive-Δ fraction in base mechanism models. Paper §5.2."],
+    [/\b50 .*?mismatched.*?controls?\b/gi, "50 item-mismatched clean-source perturbations per mechanism model. Paper §5.4, App F Table 20."],
+    [/\b−0\.58 to −4\.16\b/g, "Item-mismatched control recovery range across 5 mechanism models. Paper Fig 6, App F Table 20."],
+    [/42 (?:of 44 )?model[×x]style cells/gi, "42 / 44 model × wrapper cells positive at CI > 0. Paper §4.3."],
+  ];
+
+  function ensureTip() {
+    if (tip) return tip;
+    tip = document.createElement("div");
+    tip.className = "data-cite-tip";
+    document.body.appendChild(tip);
+    return tip;
+  }
+
+  // Walk through prose text nodes and replace matched substrings with .data-cite spans
+  function annotate(rootSel) {
+    const targets = document.querySelectorAll(rootSel);
+    targets.forEach(node => {
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null);
+      const textNodes = [];
+      let cur;
+      while ((cur = walker.nextNode())) {
+        if (cur.parentElement.closest(".data-cite, .mono, pre, code, .formula, .bibtex, .pcard-foot")) continue;
+        textNodes.push(cur);
+      }
+      textNodes.forEach(tn => annotateNode(tn));
+    });
+  }
+
+  function annotateNode(textNode) {
+    const text = textNode.nodeValue;
+    let earliest = null;
+    let provenance = null;
+    let matchedText = null;
+
+    for (const [pat, prov] of CITES) {
+      pat.lastIndex = 0; // reset regex
+      const m = pat.exec(text);
+      if (m && (earliest === null || m.index < earliest)) {
+        earliest = m.index;
+        provenance = prov;
+        matchedText = m[0];
+      }
+    }
+
+    if (earliest === null) return;
+
+    const before = text.slice(0, earliest);
+    const after  = text.slice(earliest + matchedText.length);
+
+    const parent = textNode.parentNode;
+    if (before) parent.insertBefore(document.createTextNode(before), textNode);
+
+    const span = document.createElement("span");
+    span.className = "data-cite";
+    span.textContent = matchedText;
+    span.dataset.cite = provenance;
+    span.addEventListener("mouseenter", e => showCiteTip(e, provenance));
+    span.addEventListener("mousemove", moveCiteTip);
+    span.addEventListener("mouseleave", hideCiteTip);
+    parent.insertBefore(span, textNode);
+
+    const afterNode = document.createTextNode(after);
+    parent.insertBefore(afterNode, textNode);
+    parent.removeChild(textNode);
+
+    // Recurse on afterNode for additional matches
+    if (after) annotateNode(afterNode);
+  }
+
+  function showCiteTip(e, prov) {
+    const t = ensureTip();
+    t.textContent = prov;
+    t.classList.add("show");
+    moveCiteTip(e);
+  }
+  function moveCiteTip(e) {
+    if (!tip) return;
+    const off = 14;
+    tip.style.left = (e.pageX + off) + "px";
+    tip.style.top  = (e.pageY - tip.offsetHeight - off) + "px";
+  }
+  function hideCiteTip() { if (tip) tip.classList.remove("show"); }
+
+  function init() {
+    // Target prose-heavy sections only
+    annotate(".prose, .takeaway, .pullquote");
+  }
+
+  return { init };
+})();
+
+
+// ============================================================
+// B1. Layer-model toggle for the layer-wise patching chart.
+// ============================================================
+const LayerToggle = (function () {
+  function init() {
+    const wrap = $("#layer-model");
+    if (!wrap) return;
+    wrap.querySelectorAll(".btn-mini").forEach(btn => {
+      btn.addEventListener("click", () => {
+        wrap.querySelectorAll(".btn-mini").forEach(x => x.classList.remove("active"));
+        btn.classList.add("active");
+        layerModelId = btn.dataset.model;
+        renderLayerChart();
+      });
+    });
+  }
+  return { init };
+})();
+
+
+// ============================================================
+// A4. Quick / Deep reading mode toggle.
+// Stored in localStorage so the user's preference persists.
+// ============================================================
+const ModeToggle = (function () {
+  const KEY = "stroop:mode";
+  let current = "deep";
+
+  function apply(mode) {
+    current = mode;
+    document.body.classList.toggle("mode-quick", mode === "quick");
+    const wrap = $("#mode-toggle");
+    if (wrap) {
+      wrap.querySelectorAll(".mode-btn").forEach(b => {
+        b.classList.toggle("active", b.dataset.mode === mode);
+      });
+    }
+    try { localStorage.setItem(KEY, mode); } catch (e) { /* private mode */ }
+    // Charts laid out within hidden sections may need a re-render once shown.
+    // We trigger known re-renders here.
+    setTimeout(() => {
+      if ($("#forest-chart"))  renderForest();
+      if ($("#heatmap-chart")) renderHeatmap();
+      if ($("#layer-chart"))   renderLayerChart();
+    }, 60);
+  }
+
+  function init() {
+    const wrap = $("#mode-toggle");
+    if (!wrap) return;
+    // Restore from storage
+    let saved = "deep";
+    try { saved = localStorage.getItem(KEY) || "deep"; } catch (e) {}
+    apply(saved);
+    wrap.querySelectorAll(".mode-btn").forEach(btn => {
+      btn.addEventListener("click", () => apply(btn.dataset.mode));
+    });
+  }
+
+  return { init };
+})();

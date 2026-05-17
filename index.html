@@ -57,6 +57,10 @@
       <a href="#punchline">Punchline</a>
       <a href="#cite">Cite</a>
     </div>
+    <div class="mode-toggle" id="mode-toggle" role="group" aria-label="Reading mode">
+      <button class="mode-btn active" data-mode="deep" title="Full read · prose + charts">Deep</button>
+      <button class="mode-btn" data-mode="quick" title="Skim · headlines + charts only · ~30s">Quick</button>
+    </div>
   </div>
 </nav>
 
@@ -66,6 +70,20 @@
     <div class="hero-eyebrow">EMNLP &nbsp;·&nbsp; SUBMISSION</div>
     <h1 class="hero-title">Priors persist<br/><em>through</em> suppression.</h1>
     <p class="hero-sub">You tell a language model that <em>doctor</em> means <em>forest</em>. It says ok. But does it really stop pulling toward <em>hospital</em>? A Stroop-style paradigm reveals what's happening underneath.</p>
+    <div class="hero-leak" id="hero-leak" aria-hidden="true">
+      <svg viewBox="0 0 280 104" xmlns="http://www.w3.org/2000/svg" overflow="visible">
+        <g class="leak-bars">
+          <text class="leak-state" id="leak-state" x="140" y="12" text-anchor="middle">neutral control</text>
+          <text class="leak-lbl" x="58" y="40" text-anchor="end" dominant-baseline="middle">forest</text>
+          <rect class="leak-bar leak-target" x="66" y="30" width="0" height="14" rx="3"></rect>
+          <text class="leak-val" id="leak-tval" x="70" y="40" dominant-baseline="middle">—</text>
+          <text class="leak-lbl" x="58" y="66" text-anchor="end" dominant-baseline="middle">hospital</text>
+          <rect class="leak-bar leak-distractor" x="66" y="56" width="0" height="14" rx="3"></rect>
+          <text class="leak-val" id="leak-dval" x="70" y="66" dominant-baseline="middle">—</text>
+          <text class="leak-delta" id="leak-delta" x="140" y="96" text-anchor="middle">—</text>
+        </g>
+      </svg>
+    </div>
     <p class="hero-authors">Anonymous Authors &nbsp;·&nbsp; Camera-ready names will appear here</p>
     <div class="hero-actions">
       <a class="btn primary" href="./manuscript.pdf"><span class="ico">📄</span> Read the paper</a>
@@ -306,6 +324,28 @@
     <p class="takeaway reveal">
       Any one position only recovers a fraction. Subject alone is near zero, target alone gets you about a fifth, query about a third. But injecting <strong>all three together</strong> &mdash; subject, target, query &mdash; recovers <em>everything</em>.
     </p>
+
+    <div class="stage reveal" id="layer-stage">
+      <div class="stage-controls">
+        <span class="label">LAYER SWEEP</span>
+        <div class="toggle-grp" id="layer-model">
+          <button class="btn-mini" data-model="olmo-1b">OLMo-1B</button>
+          <button class="btn-mini" data-model="qwen2.5-1.5b">Qwen2.5-1.5B</button>
+          <button class="btn-mini" data-model="qwen2.5-1.5b-it">Qwen2.5-1.5B-IT</button>
+          <button class="btn-mini active" data-model="gemma-2-2b">Gemma-2-2B</button>
+          <button class="btn-mini" data-model="gemma-2-2b-it">Gemma-2-2B-IT</button>
+        </div>
+        <span style="flex: 1"></span>
+        <span class="muted">click legend rows to toggle curves</span>
+      </div>
+      <div class="layer-row">
+        <div class="chart" id="layer-chart"></div>
+        <div class="mech-legend" id="mech-legend"></div>
+      </div>
+      <p class="layer-caption muted">
+        Recovery <em>R</em> across residual-stream layers (mid-block site). The full triplet (orange) climbs into the <em>mid-block depths</em> while every singleton stays near zero or negative — the leak lives in the middle of the network, not at input or output.
+      </p>
+    </div>
   </div>
 </section>
 
@@ -330,9 +370,13 @@
           <button class="btn-mini" data-model="gemma-2-2b-it">Gemma-2-2B-IT</button>
         </div>
         <span style="flex: 1"></span>
+        <button class="btn-mini accent" id="triplet-swap" title="Replace the def_target activation with a donor item's">⤫ Drop the target</button>
         <button class="btn-mini" id="triplet-replay">↺ Replay</button>
       </div>
       <div class="triplet-stage chart" id="triplet-chart"></div>
+      <p class="layer-caption muted">
+        <strong>Drop the target:</strong> replace only the <em>definition target</em> activation with a donor item's, keeping subject and query matched. Recovery collapses in every model — the triplet is doing <em>binding</em>, not just identity matching.
+      </p>
     </div>
 
     <p class="takeaway reveal">
@@ -383,6 +427,45 @@
       <p>When a model is told <em>doctor means forest</em>, it doesn't unlearn that doctor lives in a hospital. It learns to make <em>forest</em> win the local contest. But <em>hospital</em>'s representation is still running underneath &mdash; same lexical-prior channel, same target–distractor axis &mdash; leaking through in proportion to its strength.</p>
       <p>For systems that have to respect document-specific definitions &mdash; glossaries, RAG, technical doc QA, system prompts &mdash; that's a real distinction. A model that <em>looks</em> like it overrode the prior may still be biased toward it underneath. The Stroop card gives you a per-item measurement; the dissociation tells you which logit channel signals true binding versus mere perturbation.</p>
     </div>
+
+    <div class="usecase-grid reveal delay-3">
+      <div class="usecase-card">
+        <div class="uc-icon" aria-hidden="true">📖</div>
+        <div class="uc-eyebrow">document glossary</div>
+        <h3 class="uc-title">Glossary lookup</h3>
+        <p class="uc-prose">A spec defines <em>port</em> as <em>socket</em>; the model still leaks toward <em>harbor</em>. Across 11 models the glossary wrapper averages a <strong>+2.06 nat</strong> leak.</p>
+        <div class="uc-stat">
+          <span class="uc-stat-label">avg Δ</span>
+          <span class="uc-stat-value">+2.06</span>
+          <span class="uc-stat-unit">nats</span>
+        </div>
+      </div>
+      <div class="usecase-card">
+        <div class="uc-icon" aria-hidden="true">📑</div>
+        <div class="uc-eyebrow">technical documentation</div>
+        <h3 class="uc-title">Tech-doc grounding</h3>
+        <p class="uc-prose">An engineering doc says <em>thread</em> refers to <em>process</em>; the model still pulls toward <em>sewing</em>. The technical-document wrapper averages a <strong>+1.75 nat</strong> leak.</p>
+        <div class="uc-stat">
+          <span class="uc-stat-label">avg Δ</span>
+          <span class="uc-stat-value">+1.75</span>
+          <span class="uc-stat-unit">nats</span>
+        </div>
+      </div>
+      <div class="usecase-card">
+        <div class="uc-icon" aria-hidden="true">📌</div>
+        <div class="uc-eyebrow">passage-scoped definition</div>
+        <h3 class="uc-title">Scoped redefinition</h3>
+        <p class="uc-prose">A passage scopes <em>Java</em> to mean <em>programming</em>; the model still leaks toward <em>coffee</em>. The scoped-definition wrapper averages a <strong>+1.94 nat</strong> leak.</p>
+        <div class="uc-stat">
+          <span class="uc-stat-label">avg Δ</span>
+          <span class="uc-stat-value">+1.94</span>
+          <span class="uc-stat-unit">nats</span>
+        </div>
+      </div>
+    </div>
+    <p class="usecase-foot muted reveal">
+      Cell values are sum log-probability Δ aggregated across 11 models × 4 conflict families. Even the most authoritative wrapper (technical document) still leaks &mdash; the prior persists.
+    </p>
   </div>
 </section>
 
@@ -410,6 +493,17 @@
 </footer>
 
 <div class="tooltip" id="tooltip"></div>
+
+<!-- A3: cell drilldown modal -->
+<div class="drilldown" id="drilldown" aria-hidden="true">
+  <div class="drill-card">
+    <button class="drill-close" id="drill-close" aria-label="Close">×</button>
+    <div class="drill-eyebrow" id="drill-eyebrow"></div>
+    <h3 class="drill-title" id="drill-title"></h3>
+    <div class="drill-meta" id="drill-meta"></div>
+    <div class="drill-body" id="drill-body"></div>
+  </div>
+</div>
 
 <script src="data.js"></script>
 <script src="app.js"></script>
