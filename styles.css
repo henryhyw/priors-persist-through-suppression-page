@@ -1627,3 +1627,56 @@ body.mode-quick #meaning .usecase-grid { display: grid; }
   color: var(--text-soft);
 }
 
+/* ================================================================
+   MOBILE OVERFLOW FIXES
+   The grids below were missing `min-width: 0` on tracks. Grid items
+   default to `min-width: auto`, so they expand to the natural width
+   of their content instead of shrinking to the 1fr track. On phones
+   that forced .evidence-row stages to ~486px inside a 347px row,
+   making the whole page horizontally scrollable. Apply unconditionally
+   — `min-width: 0` is harmless on desktop (only kicks in when content
+   would otherwise exceed the allocated track).
+   ================================================================ */
+.evidence-row > *,
+.stroop-cards  > *,
+.robustness    > *,
+.reg-grid      > *,
+.numbers-row   > *,
+.diss-row      > *,
+.diss-narrator > *,
+.headline-grid > * { min-width: 0; }
+
+/* Stage-controls should wrap rather than overflow when the row is
+   narrower than the natural content. */
+.stage-controls { flex-wrap: wrap; }
+
+/* Scatter chart forces a 640px minimum drawing width in JS for
+   readability. On phones the default `max-width: 100%` was squishing
+   it; instead let it keep its drawing width and scroll horizontally,
+   matching how #patch-chart / #diss-chart / #triplet-chart behave. */
+@media (max-width: 720px) {
+  #scatter-chart {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #scatter-chart > svg { min-width: 600px; }
+
+  /* Pattern decile/regression details table overflows when narrow;
+     wrap in horizontal scroll for legibility. */
+  #reg-details {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Tighter stage padding on phones — 24/22px each side ate too much
+   of a 375px viewport. */
+@media (max-width: 480px) {
+  .stage         { padding: 18px 14px; }
+  .stage.compact { padding: 16px 14px; }
+}
+
+/* Heatmap drilldown modal: cap the card to viewport so its inner
+   meta block doesn't overflow on phones. */
+.drill-card { max-width: calc(100vw - 24px); }
+
