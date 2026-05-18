@@ -1680,3 +1680,13 @@ body.mode-quick #meaning .usecase-grid { display: grid; }
    meta block doesn't overflow on phones. */
 .drill-card { max-width: calc(100vw - 24px); }
 
+/* On phones the patch / triplet / layer chart SVGs scale down (height
+   follows width via height: auto on .chart svg). The desktop-default
+   min-heights then leave a tall empty strip below the chart. Drop them
+   on narrow viewports so the container hugs the SVG. */
+@media (max-width: 720px) {
+  .patch-schematic { min-height: 0; }
+  .triplet-stage   { min-height: 0; }
+  #layer-chart     { min-height: 0; }
+}
+
