@@ -303,6 +303,10 @@
       <p>Behavior tells us the leak is real and scales with the prior. To find <em>where</em> it lives, we use <strong>activation patching</strong>. We run the model twice: once on the conflict prompt (the run that leaks), once on the neutral control (the run that doesn't). We copy a slice of internal state &mdash; one token's activations at one layer &mdash; from the neutral run into the conflict run, and measure how much of the leak goes away.</p>
     </div>
 
+    <p class="layer-caption muted reveal delay-2">
+      <strong>Scope.</strong> Mechanistic results in §05&ndash;§07 are established on five aligned 1B&ndash;2B models (Qwen2.5-1.5B base/IT, Gemma-2-2B base/IT, OLMo-1B), the antonym family, the game-rule wrapper, and single-token target/distractor items &mdash; the regime where activation patching is tractable. The behavioral panels in §03&ndash;§04 cover the full 11-model &times; 4-family &times; 4-wrapper grid.
+    </p>
+
     <div class="stage reveal delay-3" id="patch-stage">
       <div class="stage-controls">
         <span class="label">PATCH FROM</span>
@@ -322,7 +326,7 @@
     </div>
 
     <p class="takeaway reveal">
-      Any one position only recovers a fraction. Subject alone is near zero, target alone gets you about a fifth, query about a third. But injecting <strong>all three together</strong> &mdash; subject, target, query &mdash; recovers <em>everything</em>.
+      Any one position only recovers a fraction &mdash; and in some models actively hurts. For Gemma-2-2B (shown), subject &asymp; 0, target &asymp; 1/5, query &asymp; 1/3; in Qwen2.5-1.5B and Gemma-2-2B-IT, singletons go strongly negative. But injecting <strong>all three together</strong> &mdash; subject, target, query &mdash; recovers <em>everything</em> in every model.
     </p>
 
     <div class="stage reveal" id="layer-stage">
@@ -343,7 +347,7 @@
         <div class="mech-legend" id="mech-legend"></div>
       </div>
       <p class="layer-caption muted">
-        Recovery <em>R</em> across residual-stream layers (mid-block site). The full triplet (orange) climbs into the <em>mid-block depths</em> while every singleton stays near zero or negative — the leak lives in the middle of the network, not at input or output.
+        Recovery <em>R</em> across residual-stream layers (mid-block site) for Gemma-2-2B. The full triplet (orange) climbs into mid-block depths while every singleton stays near zero or negative. Four of the five mechanism models actually locate the triplet at the block-input site at varying depths (paper Table 4) — the binding lives at a single <em>model-specific</em> residual position, not universally in the middle.
       </p>
     </div>
   </div>
@@ -380,7 +384,7 @@
     </div>
 
     <p class="takeaway reveal">
-      The rule lives in a three-token signature in mid-block residual stream. Not at one position. Not by simple addition. By a <em>bound triplet</em>.
+      The rule lives in a three-token signature in the residual stream. Not at one position. Not by simple addition. By a <em>bound triplet</em>.
     </p>
   </div>
 </section>
