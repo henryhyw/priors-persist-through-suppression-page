@@ -1,27 +1,27 @@
 /* ============================================================
  * styles.css — Priors Persist Through Suppression
- * Cream / warm-light scrolly-telling theme.
+ * Light, Swiss-grotesk scrolly-telling theme (Archivo / ink navy).
  * ============================================================ */
 
 /* -------- Design tokens ------------------------------------- */
 :root {
   /* Backgrounds */
-  --bg:           #faf9f5;
-  --bg-warm:      #f4f1ea;
+  --bg:           #ffffff;
+  --bg-warm:      #f2f2f2;
   --bg-card:      #ffffff;
-  --bg-elevated:  #fdfcf7;
-  --bg-deep:      #efebe0;
+  --bg-elevated:  #fafafa;
+  --bg-deep:      #e9e9e9;
 
   /* Text */
-  --text:         #2c2925;
-  --text-soft:    #4a463e;
-  --text-mute:    #807a6e;
-  --text-faint:   #b5af9f;
+  --text:         #111111;
+  --text-soft:    #333333;
+  --text-mute:    #6b6b6b;
+  --text-faint:   #b3b3b3;
 
   /* Lines */
-  --line:         rgba(58, 48, 28, 0.10);
-  --line-soft:    rgba(58, 48, 28, 0.06);
-  --line-strong:  rgba(58, 48, 28, 0.18);
+  --line:         rgba(0, 0, 0, 0.12);
+  --line-soft:    rgba(0, 0, 0, 0.07);
+  --line-strong:  rgba(0, 0, 0, 0.20);
 
   /* Stroop conceptual palette */
   --target:       #2f7d6b;       /* deep teal — context-defined target */
@@ -31,10 +31,10 @@
   --distractor-soft: rgba(192, 87, 70, 0.10);
   --distractor-bg:   rgba(192, 87, 70, 0.04);
 
-  /* Anthropic-y warm accent */
-  --accent:       #cc785c;
-  --accent-soft:  rgba(204, 120, 92, 0.10);
-  --accent-bg:    rgba(204, 120, 92, 0.05);
+  /* Accent — low-saturation ink navy */
+  --accent:       #1d3a73;
+  --accent-soft:  rgba(29, 58, 115, 0.10);
+  --accent-bg:    rgba(29, 58, 115, 0.05);
 
   /* Highlight (for "query word") */
   --query:        #b8860b;
@@ -47,9 +47,9 @@
   --fam-mistral: #b85c44;
 
   /* Fonts */
-  --font-display: "Fraunces", "Tiempos Headline", Georgia, serif;
-  --font-body:    "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body:    "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-mono:    "Space Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   /* Layout */
   --content:  720px;
@@ -92,7 +92,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 400; letter-spac
 .topnav {
   position: fixed; top: 0; left: 0; right: 0;
   z-index: 80;
-  background: rgba(250, 249, 245, 0.85);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid transparent;
